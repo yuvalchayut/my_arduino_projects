@@ -1,4 +1,4 @@
-//#include <LiquidCrystal.h>
+#include <LiquidCrystal.h>
 #include <EEPROM.h>
 
 
@@ -13,11 +13,13 @@ void rest_clock();
 
 #define EEPROM_DEFAULT_START 4
 #define BATTON_PIN_DEFAULT_START 34
-#define BATTON_LIST_LEN 8
+#define BATTON_LIST_LEN 11
 #define PRINT_4_SEGMENT_DELAY 1000
+#define CHANGE_TIME_BATTON 10
+#define CHANGE_PASS_BATTON 11
 
 
-const uint32_t SALT = 0x9E3779B9;
+const uint32_t SALT = 0x9E377199;
 //password related
 char last_char = 0;
 unsigned long password = 0;
@@ -92,9 +94,9 @@ void setup() {
 // the loop routine runs over and over again forever:
 void loop() {
   currentMillis = millis();
-  if (currentMillis - last_clock_cycle >= 1000)
+  if (currentMillis - last_clock_cycle >= 60000)
   {
-    last_clock_cycle += 1000;
+    last_clock_cycle += 60000;
     count++;
     if (count % 100 > 59)
     {
@@ -108,6 +110,7 @@ void loop() {
     print_number_full(count);
   }
   hendel_user();
+  //get_user_input();
   
   
 }
@@ -115,8 +118,9 @@ void loop() {
 //gets a number and desplays it on the seven segment
 void print_number(int num)
 {
-  if (num == 0)
+  switch (num)
   {
+  case 0:
     digitalWrite(pinA,  HIGH);
     digitalWrite(pinB, HIGH);
     digitalWrite(pinC, HIGH);
@@ -124,9 +128,8 @@ void print_number(int num)
     digitalWrite(pinE, HIGH);
     digitalWrite(pinF,  HIGH);
     digitalWrite(pinG, LOW);
-  }
-  else if (num == 1)
-  {
+    break;
+  case 1:
     digitalWrite(pinA,  LOW);
     digitalWrite(pinB, HIGH);
     digitalWrite(pinC, HIGH);
@@ -134,9 +137,8 @@ void print_number(int num)
     digitalWrite(pinE, LOW);
     digitalWrite(pinF,  LOW);
     digitalWrite(pinG, LOW);
-  }
-  else if (num == 2)
-  {
+    break;
+  case 2:
     digitalWrite(pinA,  HIGH);
     digitalWrite(pinB, HIGH);
     digitalWrite(pinC, LOW);
@@ -144,9 +146,8 @@ void print_number(int num)
     digitalWrite(pinE, HIGH);
     digitalWrite(pinF,  LOW);
     digitalWrite(pinG, HIGH);
-  }
-  else if (num == 3)
-  {
+    break;
+  case 3:
     digitalWrite(pinA,  HIGH);
     digitalWrite(pinB, HIGH);
     digitalWrite(pinC, HIGH);
@@ -154,9 +155,8 @@ void print_number(int num)
     digitalWrite(pinE, LOW);
     digitalWrite(pinF,  LOW);
     digitalWrite(pinG, HIGH);
-  }
-  else if (num == 4)
-  {
+    break;
+  case 4:
     digitalWrite(pinA,  LOW);
     digitalWrite(pinB, HIGH);
     digitalWrite(pinC, HIGH);
@@ -164,9 +164,8 @@ void print_number(int num)
     digitalWrite(pinE, LOW);
     digitalWrite(pinF,  HIGH);
     digitalWrite(pinG, HIGH);
-  }
-  else if (num == 5)
-  {
+    break;
+  case 5:
     digitalWrite(pinA,  HIGH);
     digitalWrite(pinB, LOW);
     digitalWrite(pinC, HIGH);
@@ -174,9 +173,8 @@ void print_number(int num)
     digitalWrite(pinE, LOW);
     digitalWrite(pinF,  HIGH);
     digitalWrite(pinG, HIGH);
-  }
-  else if (num == 6)
-  {
+    break;
+  case 6:
     digitalWrite(pinA,  HIGH);
     digitalWrite(pinB, LOW);
     digitalWrite(pinC, HIGH);
@@ -184,9 +182,8 @@ void print_number(int num)
     digitalWrite(pinE, HIGH);
     digitalWrite(pinF,  HIGH);
     digitalWrite(pinG, HIGH);
-  }
-  else if (num == 7)
-  {
+    break;
+  case 7:
     digitalWrite(pinA,  HIGH);
     digitalWrite(pinB, HIGH);
     digitalWrite(pinC, HIGH);
@@ -194,9 +191,8 @@ void print_number(int num)
     digitalWrite(pinE, LOW);
     digitalWrite(pinF,  LOW);
     digitalWrite(pinG, LOW);
-  }
-  else if (num == 8)
-  {
+    break;
+  case 8:
     digitalWrite(pinA,  HIGH);
     digitalWrite(pinB, HIGH);
     digitalWrite(pinC, HIGH);
@@ -204,9 +200,8 @@ void print_number(int num)
     digitalWrite(pinE, HIGH);
     digitalWrite(pinF,  HIGH);
     digitalWrite(pinG, HIGH);
-  }
-  else if (num == 9)
-  {
+    break;
+  case 9:
     digitalWrite(pinA,  HIGH);
     digitalWrite(pinB, HIGH);
     digitalWrite(pinC, HIGH);
@@ -214,6 +209,7 @@ void print_number(int num)
     digitalWrite(pinE, LOW);
     digitalWrite(pinF,  HIGH);
     digitalWrite(pinG, HIGH);
+    break;
   }
 }
 
@@ -345,19 +341,19 @@ char get_user_input()
 
 int hendel_user()
 {
-  int multiply = 1;
+  unsigned long multiply = 1;
   unsigned long pass = 0;
   //static int len = 10;
   int ok = 1;
   //static char* input_char = (char*)calloc(len, sizeof(char));
   char input = get_user_input();
-  if(input == 6)
+  if(input == CHANGE_TIME_BATTON)
   {
     while(ok)
     {
       count = count % multiply +((analogRead(potentiometer) / 100 % 10) * multiply);
       print_number_full(count);
-      if(get_user_input() == 6)
+      if(get_user_input() == CHANGE_TIME_BATTON)
       {
         multiply = multiply * 10;
         if(multiply >= 1001)
@@ -369,24 +365,25 @@ int hendel_user()
       }
     }
   }
-  else if(input == 7)
+  else if(input == CHANGE_PASS_BATTON)
   {
     pass = 0;
     while(ok)
     {
       input = get_user_input();
-      if(input != -1)
+      if(input != -1 && input != CHANGE_PASS_BATTON)
       {
         //input pass
         pass += input * multiply;
         multiply = multiply * 10;
-        if(multiply >= 1001)
+       
+      }
+       if(multiply >= 100000001 || (input == CHANGE_PASS_BATTON && multiply >= 1001))
         {
           ok = 0;
           write_password_to_eeprom(pass);
           rest_clock();
         }
-      }
     }
   }
   return 0;
@@ -396,10 +393,10 @@ int hendel_user()
 void rest_clock()
 {
   currentMillis = millis();
-  while (currentMillis - last_clock_cycle >= 1000)
+  while (currentMillis - last_clock_cycle >= 60000)
   {
     currentMillis = millis();
-    last_clock_cycle += 1000;
+    last_clock_cycle += 60000;
     count++;
     if (count % 100 > 59)
     {
