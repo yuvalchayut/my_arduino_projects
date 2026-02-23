@@ -3,7 +3,7 @@
 
 
 void print_number(int num);
-void print_number_full(int num);
+void print_number_full(long num);
 bool write_password_to_eeprom(unsigned long pass);
 uint32_t murmur3_32(const uint8_t* key, size_t len, uint32_t seed);
 char get_user_input();
@@ -17,6 +17,8 @@ void rest_clock();
 #define PRINT_4_SEGMENT_DELAY 1000
 #define CHANGE_TIME_BATTON 10
 #define CHANGE_PASS_BATTON 11
+#define FIRST_PIN 22
+#define SECOND_PIN 45
 
 
 const uint32_t SALT = 0x9E377199;
@@ -49,11 +51,27 @@ int D1 = 29;
 int D2 = 30;
 int D3 = 31;
 int D4 = 32;
-int count = 0;
+
+//
+int pinA2 = 45;
+int pinB2 = 46;
+int pinC2 = 47;
+int pinD2 = 48;
+int pinE2 = 49;
+int pinF2 = 50;
+int pinG2 = 51;
+int D5 = 52;
+int D6 = 53;
+int D7 = 20;
+int D8 = 21;
+//
+
+unsigned long count = 0;
 int potentiometer = A5;
 
 // the setup routine runs once when you press reset:
 void setup() {
+  Serial.begin(9600);
   // check the eeprom_base_address is valid
   EEPROM.get(eeprom_base_address, counterValue);
   if(counterValue == -1)
@@ -68,7 +86,9 @@ void setup() {
   {
     button_arr[i] = BATTON_PIN_DEFAULT_START + i;
     pinMode(button_arr[i], INPUT);
+    Serial.println(i + BATTON_PIN_DEFAULT_START);
   }
+  
   pinMode(potentiometer, INPUT);
   pinMode(pinA, OUTPUT);
   pinMode(pinB, OUTPUT);
@@ -77,11 +97,22 @@ void setup() {
   pinMode(pinE, OUTPUT);
   pinMode(pinF, OUTPUT);
   pinMode(pinG, OUTPUT);
+  pinMode(pinA2, OUTPUT);
+  pinMode(pinB2, OUTPUT);
+  pinMode(pinC2, OUTPUT);
+  pinMode(pinD2, OUTPUT);
+  pinMode(pinE2, OUTPUT);
+  pinMode(pinF2, OUTPUT);
+  pinMode(pinG2, OUTPUT);
   pinMode(D1, OUTPUT);
   pinMode(D2, OUTPUT);
   pinMode(D3, OUTPUT);
   pinMode(D4, OUTPUT);
-  Serial.begin(9600);
+  pinMode(D5, OUTPUT);
+  pinMode(D6, OUTPUT);
+  pinMode(D7, OUTPUT);
+  pinMode(D8, OUTPUT);
+  
 
 
   //write_password_to_eeprom(12313);
@@ -94,15 +125,19 @@ void setup() {
 // the loop routine runs over and over again forever:
 void loop() {
   currentMillis = millis();
-  if (currentMillis - last_clock_cycle >= 60000)
+  if (currentMillis - last_clock_cycle >= 100)
   {
-    last_clock_cycle += 60000;
+    last_clock_cycle += 100;
     count++;
     if (count % 100 > 59)
     {
       count += -(count % 100) + 100 ;
+      if(count % 10000 > 5900)
+      {
+        count += -(count % 10000) + 10000 ;
+      }
     }
-    count = count % 2400;
+    count = count % 240000;
   }
   if (currentMillis - last_print >= 10)
   {
@@ -116,8 +151,16 @@ void loop() {
 }
 
 //gets a number and desplays it on the seven segment
-void print_number(int num)
+void print_number(int num, int start)
 {
+  
+  int pinA = start;
+  int pinB = start + 1;
+  int pinC = start + 2;
+  int pinD = start + 3;
+  int pinE = start + 4;
+  int pinF = start + 5;
+  int pinG = start + 6;
   switch (num)
   {
   case 0:
@@ -214,37 +257,57 @@ void print_number(int num)
 }
 
 //gives print_number the write numbers and is in charg of liting the corect screens
-void print_number_full(int num)
+void print_number_full(long num)
 {
   digitalWrite(D1, HIGH);
-  digitalWrite(D2,  HIGH);
+  digitalWrite(D2, HIGH);
   digitalWrite(D3, HIGH);
   digitalWrite(D4, HIGH);
-  int digit = num % 10;
+  digitalWrite(D5, LOW);
+  digitalWrite(D6, LOW);
+   digitalWrite(D7, LOW);
+  digitalWrite(D8, LOW);
+  long digit = num % 10;
+  
+  Serial.println(num);
+  num = num / 10;
+  digitalWrite(D6, LOW);
+  print_number(digit, SECOND_PIN);
+  delayMicroseconds(PRINT_4_SEGMENT_DELAY);
+  digitalWrite(D6, HIGH);
+  
+  digit = num % 10;
+  num = num / 10;
+  digitalWrite(D5, LOW);
+  print_number(digit, SECOND_PIN);
+  delayMicroseconds(PRINT_4_SEGMENT_DELAY);
+  digitalWrite(D5, HIGH);
+
+  digit = num % 10;
   num = num / 10;
   digitalWrite(D4, LOW);
-  print_number(digit);
+  print_number(digit, FIRST_PIN);
   delayMicroseconds(PRINT_4_SEGMENT_DELAY);
   digitalWrite(D4, HIGH);
 
   digit = num % 10;
   num = num / 10;
   digitalWrite(D3, LOW);
-  print_number(digit);
+  print_number(digit, FIRST_PIN);
   delayMicroseconds(PRINT_4_SEGMENT_DELAY);
   digitalWrite(D3, HIGH);
 
   digit = num % 10;
   num = num / 10;
   digitalWrite(D2, LOW);
-  print_number(digit);
+  print_number(digit, FIRST_PIN);
   delayMicroseconds(PRINT_4_SEGMENT_DELAY);
   digitalWrite(D2, HIGH);
 
   digit = num % 10;
   num = num / 10;
   digitalWrite(D1, LOW);
-  print_number(digit);
+  print_number(digit, FIRST_PIN);
   delayMicroseconds(PRINT_4_SEGMENT_DELAY);
   digitalWrite(D1, HIGH);
 }
