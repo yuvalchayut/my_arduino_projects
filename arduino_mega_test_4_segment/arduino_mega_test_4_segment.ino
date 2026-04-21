@@ -3,7 +3,7 @@
 
 
 void print_number(int num);
-void print_number_full(long num);
+void print_number_full(char Seconds, char Minutes, char Hours);
 bool write_password_to_eeprom(unsigned long pass);
 uint32_t murmur3_32(const uint8_t* key, size_t len, uint32_t seed);
 char get_user_input();
@@ -40,13 +40,13 @@ unsigned long currentMillis = 0;
 
 //pins conected to arduino
 int button_arr[BATTON_LIST_LEN];
-int pinA = 22;
-int pinB = 23;
-int pinC = 24;
-int pinD = 25;
-int pinE = 26;
-int pinF = 27;
-int pinG = 28;
+int pinA1 = 22;
+int pinB1 = 23;
+int pinC1 = 24;
+int pinD1 = 25;
+int pinE1 = 26;
+int pinF1 = 27;
+int pinG1 = 28;
 int D1 = 29;
 int D2 = 30;
 int D3 = 31;
@@ -66,6 +66,9 @@ int D7 = 20;
 int D8 = 21;
 //
 
+char seconds = 0;
+char minutes = 0;
+char hours = 0;
 unsigned long count = 0;
 int potentiometer = A5;
 
@@ -90,13 +93,13 @@ void setup() {
   }
   
   pinMode(potentiometer, INPUT);
-  pinMode(pinA, OUTPUT);
-  pinMode(pinB, OUTPUT);
-  pinMode(pinC, OUTPUT);
-  pinMode(pinD, OUTPUT);
-  pinMode(pinE, OUTPUT);
-  pinMode(pinF, OUTPUT);
-  pinMode(pinG, OUTPUT);
+  pinMode(pinA1, OUTPUT);
+  pinMode(pinB1, OUTPUT);
+  pinMode(pinC1, OUTPUT);
+  pinMode(pinD1, OUTPUT);
+  pinMode(pinE1, OUTPUT);
+  pinMode(pinF1, OUTPUT);
+  pinMode(pinG1, OUTPUT);
   pinMode(pinA2, OUTPUT);
   pinMode(pinB2, OUTPUT);
   pinMode(pinC2, OUTPUT);
@@ -128,21 +131,21 @@ void loop() {
   if (currentMillis - last_clock_cycle >= 100)
   {
     last_clock_cycle += 100;
-    count++;
-    if (count % 100 > 59)
+    seconds++;
+    if (seconds % 100 > 59)
     {
-      count += -(count % 100) + 100 ;
-      if(count % 10000 > 5900)
+      minutes++;
+      if(minutes % 100 > 59)
       {
-        count += -(count % 10000) + 10000 ;
+        hours++;
       }
     }
-    count = count % 240000;
+    hours = hours % 24;
   }
   if (currentMillis - last_print >= 10)
   {
     last_print += 10;
-    print_number_full(count);
+    print_number_full(seconds, minutes, hours);
   }
   hendel_user();
   //get_user_input();
@@ -164,21 +167,21 @@ void print_number(int num, int start)
   switch (num)
   {
   case 0:
-    digitalWrite(pinA,  HIGH);
+    digitalWrite(pinA, HIGH);
     digitalWrite(pinB, HIGH);
     digitalWrite(pinC, HIGH);
     digitalWrite(pinD, HIGH);
     digitalWrite(pinE, HIGH);
-    digitalWrite(pinF,  HIGH);
+    digitalWrite(pinF, HIGH);
     digitalWrite(pinG, LOW);
     break;
   case 1:
-    digitalWrite(pinA,  LOW);
+    digitalWrite(pinA, LOW);
     digitalWrite(pinB, HIGH);
     digitalWrite(pinC, HIGH);
     digitalWrite(pinD, LOW);
     digitalWrite(pinE, LOW);
-    digitalWrite(pinF,  LOW);
+    digitalWrite(pinF, LOW);
     digitalWrite(pinG, LOW);
     break;
   case 2:
@@ -257,55 +260,51 @@ void print_number(int num, int start)
 }
 
 //gives print_number the write numbers and is in charg of liting the corect screens
-void print_number_full(long num)
+void print_number_full(char Seconds, char Minutes, char Hours)
 {
   digitalWrite(D1, HIGH);
   digitalWrite(D2, HIGH);
   digitalWrite(D3, HIGH);
   digitalWrite(D4, HIGH);
-  digitalWrite(D5, LOW);
-  digitalWrite(D6, LOW);
-   digitalWrite(D7, LOW);
-  digitalWrite(D8, LOW);
-  long digit = num % 10;
+  digitalWrite(D5, HIGH);
+  digitalWrite(D6, HIGH);
+   digitalWrite(D7, HIGH);
+  digitalWrite(D8, HIGH);
+  int digit = Seconds % 10;
   
-  Serial.println(num);
-  num = num / 10;
+  Seconds = Seconds / 10;
   digitalWrite(D6, LOW);
   print_number(digit, SECOND_PIN);
   delayMicroseconds(PRINT_4_SEGMENT_DELAY);
   digitalWrite(D6, HIGH);
   
-  digit = num % 10;
-  num = num / 10;
+  digit = Seconds % 10;
   digitalWrite(D5, LOW);
   print_number(digit, SECOND_PIN);
   delayMicroseconds(PRINT_4_SEGMENT_DELAY);
   digitalWrite(D5, HIGH);
 
-  digit = num % 10;
-  num = num / 10;
+  digit = Minutes % 10;
+  Minutes = Minutes / 10;
   digitalWrite(D4, LOW);
   print_number(digit, FIRST_PIN);
   delayMicroseconds(PRINT_4_SEGMENT_DELAY);
   digitalWrite(D4, HIGH);
 
-  digit = num % 10;
-  num = num / 10;
+  digit = Minutes % 10;
   digitalWrite(D3, LOW);
   print_number(digit, FIRST_PIN);
   delayMicroseconds(PRINT_4_SEGMENT_DELAY);
   digitalWrite(D3, HIGH);
 
-  digit = num % 10;
-  num = num / 10;
+  digit = Hours % 10;
+  Hours = Hours / 10;
   digitalWrite(D2, LOW);
   print_number(digit, FIRST_PIN);
   delayMicroseconds(PRINT_4_SEGMENT_DELAY);
   digitalWrite(D2, HIGH);
 
-  digit = num % 10;
-  num = num / 10;
+  digit = Hours % 10;
   digitalWrite(D1, LOW);
   print_number(digit, FIRST_PIN);
   delayMicroseconds(PRINT_4_SEGMENT_DELAY);
@@ -415,7 +414,7 @@ int hendel_user()
     while(ok)
     {
       count = count % multiply +((analogRead(potentiometer) / 100 % 10) * multiply);
-      print_number_full(count);
+      print_number_full(seconds, minutes, hours);
       if(get_user_input() == CHANGE_TIME_BATTON)
       {
         multiply = multiply * 10;
