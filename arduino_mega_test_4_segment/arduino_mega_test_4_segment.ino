@@ -1,10 +1,10 @@
-#include <LiquidCrystal.h>
+//#include <LiquidCrystal.h>
 #include <EEPROM.h>
 #include <SHA256.h>
 
 
 void print_number(int num);
-void print_number_full(char Seconds, char Minutes, char Hours);
+void print_number_full(uint8_t Seconds, uint8_t Minutes, uint8_t Hours);
 bool write_password_to_eeprom(uint8_t* pass);
 char get_user_input();
 int hendel_user();
@@ -73,9 +73,9 @@ int D7 = 20;
 int D8 = 21;
 //
 
-char seconds = 0;
-char minutes = 0;
-char hours = 0;
+uint8_t seconds = 0;
+uint8_t minutes = 0;
+uint8_t hours = 0;
 unsigned long count = 0;
 int potentiometer = A5;
 
@@ -270,7 +270,7 @@ void print_number(int num, int start)
 }
 
 //gives print_number the write numbers and is in charg of liting the corect screens
-void print_number_full(char Seconds, char Minutes, char Hours)
+void print_number_full(uint8_t Seconds, uint8_t Minutes, uint8_t Hours)
 {
   digitalWrite(D1, LOW);
   digitalWrite(D2, LOW);
@@ -280,7 +280,7 @@ void print_number_full(char Seconds, char Minutes, char Hours)
   digitalWrite(D6, LOW);
   digitalWrite(D7, HIGH);
   digitalWrite(D8, HIGH);
-  int digit = Seconds % 10;
+  int digit = 0;
 
   digit = Hours % 10;
   Hours = Hours / 10;
