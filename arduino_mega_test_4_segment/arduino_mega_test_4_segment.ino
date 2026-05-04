@@ -3,6 +3,8 @@
 #include <SHA256.h>
 
 
+
+
 void print_number(int num);
 void print_number_full(uint8_t Seconds, uint8_t Minutes, uint8_t Hours);
 bool write_password_to_eeprom(uint8_t* pass);
@@ -11,6 +13,7 @@ int hendel_user();
 void rest_clock();
 bool validate_password(uint8_t* pass);
 bool check_for_pass();
+bool check_alarms(Time_format this_time, Time_format* alarms_check);
 
 
 #define EEPROM_DEFAULT_START 4
@@ -19,11 +22,19 @@ bool check_for_pass();
 #define PRINT_4_SEGMENT_DELAY 1000
 #define CHANGE_TIME_BATTON 0
 #define CHANGE_PASS_BATTON 1
+#define ADD_ALARM_BATTON 2
 #define CHANGE_BATTON 10
 #define FIRST_PIN 22
 #define SECOND_PIN 45
 #define PASS_HASH 32
 #define PASS_LEN 10
+
+
+struct Time_format {
+  uint8_t seconds = 0;
+  uint8_t minutes = 0;
+  uint8_t hours = 0;
+};
 
 
 //const uint32_t SALT = 0x9E377199;
@@ -73,9 +84,9 @@ int D7 = 20;
 int D8 = 21;
 //
 
-uint8_t seconds = 0;
-uint8_t minutes = 0;
-uint8_t hours = 0;
+Time_format clock_time;
+Time_format alarms[3];
+
 unsigned long count = 0;
 int potentiometer = A5;
 
@@ -139,23 +150,24 @@ void loop() {
   if (currentMillis - last_clock_cycle >= 1000)
   {
     last_clock_cycle += 1000;
-    seconds++;
-    if (seconds % 100 > 59)
+    clock_time.seconds++;
+    check_alarms(clock_time, alarms);
+    if (clock_time.seconds % 100 > 59)
     {
-      seconds = 0;
-      minutes++;
-      if(minutes % 100 > 59)
+      clock_time.seconds = 0;
+      clock_time.minutes++;
+      if(clock_time.minutes % 100 > 59)
       {
-        minutes = 0;
-        hours++;
+        clock_time.minutes = 0;
+        clock_time.hours++;
       }
     }
-    hours = hours % 24;
+    clock_time.hours = clock_time.hours % 24;
   }
   if (currentMillis - last_print >= 10)
   {
     last_print += 10;
-    print_number_full(seconds, minutes, hours);
+    print_number_full(clock_time.seconds, clock_time.minutes, clock_time.hours);
   }
   hendel_user();
   //get_user_input();
@@ -410,12 +422,12 @@ int hendel_user()
     {
       count = count % multiply +((analogRead(potentiometer) / 100 % 10) * multiply);
       unsigned long calc_count = count;
-      seconds = calc_count % 100;
+      clock_time.seconds = calc_count % 100;
       calc_count = calc_count / 100;
-      minutes = calc_count % 100;
+      clock_time.minutes = calc_count % 100;
       calc_count = calc_count / 100;
-      hours = calc_count % 100;
-      print_number_full(seconds, minutes, hours);
+      clock_time.hours = calc_count % 100;
+      print_number_full(clock_time.seconds, clock_time.minutes, clock_time.hours);
       if(get_user_input() == CHANGE_BATTON)
       {
         multiply = multiply * 10;
@@ -455,6 +467,40 @@ int hendel_user()
         }
     }
   }
+  else if(input == ADD_ALARM_BATTON)
+  {
+    int j = -1;
+    if(check_for_pass() == false)
+    {
+      Serial.println("wrong pass ");
+      return -1;
+    }
+    Serial.println("ok pass ");
+    while(j >= 3 ||  j < 0)
+    {
+      j = get_user_input();
+    }
+    while(ok)
+    {
+      count = count % multiply +((analogRead(potentiometer) / 100 % 10) * multiply);
+      unsigned long calc_count = count;
+      alarms[j].seconds = calc_count % 100;
+      calc_count = calc_count / 100;
+      alarms[j].minutes = calc_count % 100;
+      calc_count = calc_count / 100;
+      alarms[j].hours = calc_count % 100;
+      print_number_full(alarms[j].seconds, alarms[j].minutes, alarms[j].hours);
+      if(get_user_input() == CHANGE_BATTON)
+      {
+        multiply = multiply * 10;
+        if(multiply >= 100001)
+        {
+          ok = 0;
+          rest_clock();
+        }
+      }
+    }
+  }
   return 0;
 }
 
@@ -468,18 +514,18 @@ void rest_clock()
     if (currentMillis - last_clock_cycle >= 1000)
     {
       last_clock_cycle += 1000;
-      seconds++;
-      if (seconds % 100 > 59)
+      clock_time.seconds++;
+      if (clock_time.seconds % 100 > 59)
       {
-        seconds = 0;
-        minutes++;
-        if(minutes % 100 > 59)
+        clock_time.seconds = 0;
+        clock_time.minutes++;
+        if(clock_time.minutes % 100 > 59)
         {
-          minutes = 0;
-          hours++;
+          clock_time.minutes = 0;
+          clock_time.hours++;
         }
       }
-      hours = hours % 24;
+      clock_time.hours = clock_time.hours % 24;
     }
   }
   last_print = millis();
@@ -523,6 +569,27 @@ bool validate_password(uint8_t* pass)
   sha256.finalize(result, PASS_HASH);
   EEPROM.get(eepromAddress, test_num); 
   if(memcmp(test_num, result, PASS_HASH) == 0)
+  {
+    return true;
+  }
+  return false;
+}
+
+
+bool check_alarms(Time_format this_time, Time_format* alarms_check)
+{
+  int j = 0;
+  if(this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
+  {
+    return true;
+  }
+  j++;
+  if(this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
+  {
+    return true;
+  }
+  j++;
+  if(this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
   {
     return true;
   }
