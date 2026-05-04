@@ -147,22 +147,23 @@ void setup() {
   EEPROM.get(eeprom_base_address, eepromAddress); 
   Serial.print("Read from EEPROM: ");
   Serial.println(eepromAddress);
-  
+  timer_awake_validation();
   delay(1000);
 }
 
 // the loop routine runs over and over again forever:
 void loop() {
+  
   currentMillis = millis();
   if (currentMillis - last_clock_cycle >= 1000)
   {
     last_clock_cycle += 1000;
     clock_time.seconds++;
-    if (clock_time.seconds % 100 > 59)
+    if (clock_time.seconds > 59)
     {
       clock_time.seconds = 0;
       clock_time.minutes++;
-      if(clock_time.minutes % 100 > 59)
+      if(clock_time.minutes > 59)
       {
         clock_time.minutes = 0;
         clock_time.hours++;
@@ -578,7 +579,7 @@ bool validate_password(uint8_t* pass)
 bool check_alarms(Time_format this_time, Time_format* alarms_check)
 {
   int j = 0;
-  for (j = 0; j <= ALARM_COUNT; j++)
+  for (j = 0; j < ALARM_COUNT; j++)
   {
     if(alarms_check[j].active == true && this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
     {
@@ -598,12 +599,13 @@ void timer_awake_validation()
   {
     pass[i] = 11;
     rand_arr[i] = random(10);
+    Serial.print((int)rand_arr[i]);
   }
   int i = 0;
   bool ok = true;
   while(ok)
   {
-    to_Time_format(rand_arr, &alarm_code, PASS_LEN - i);
+    to_Time_format(rand_arr + (i * sizeof(uint8_t)), &alarm_code, PASS_LEN - i);
     print_number_full(alarm_code.seconds, alarm_code.minutes, alarm_code.hours);
     input = get_user_input();
     if(input != -1 && input != CHANGE_BATTON)
@@ -653,11 +655,12 @@ void to_Time_format(unsigned long num, Time_format* time_set)
 
 void to_Time_format(uint8_t* arr, Time_format* time_set, int arr_len)
 {
-  int arr_to_int;
-  int mul = 1;
-  for(int i = 0; i < arr_len && i < 6; i++)
+  unsigned long arr_to_int = 0;
+  unsigned long mul = 1;
+  int i = 0;
+  for(i = 0; (i < arr_len) && (i < 6); i++)
   {
-    arr_to_int += arr[i] * mul;
+    arr_to_int += ((unsigned long)arr[i]) * mul;
     mul = mul * 10;
   }
   to_Time_format(arr_to_int, time_set);
