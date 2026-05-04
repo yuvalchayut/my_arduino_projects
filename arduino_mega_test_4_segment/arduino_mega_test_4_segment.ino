@@ -6,7 +6,6 @@
 void print_number(int num);
 void print_number_full(char Seconds, char Minutes, char Hours);
 bool write_password_to_eeprom(uint8_t* pass);
-uint32_t murmur3_32(const uint8_t* key, size_t len, uint32_t seed);
 char get_user_input();
 int hendel_user();
 void rest_clock();
@@ -24,9 +23,10 @@ bool check_for_pass();
 #define FIRST_PIN 22
 #define SECOND_PIN 45
 #define PASS_HASH 32
+#define PASS_LEN 10
 
 
-const uint32_t SALT = 0x9E377199;
+//const uint32_t SALT = 0x9E377199;
 //password related
 char last_char = 0;
 unsigned long password = 0;
@@ -383,7 +383,11 @@ char get_user_input()
 int hendel_user()
 {
   unsigned long multiply = 1;
-  uint8_t pass[10] = {0};
+  uint8_t pass[PASS_LEN] = {11};
+  for (int i = 0; i < PASS_LEN; i++)
+  {
+    pass[i] = 11;
+  }
   //static int len = 10;
   int ok = 1;
   //static char* input_char = (char*)calloc(len, sizeof(char));
@@ -395,6 +399,7 @@ int hendel_user()
       Serial.println("wrong pass ");
       return -1;
     }
+    Serial.println("ok pass ");
     while(ok)
     {
       count = count % multiply +((analogRead(potentiometer) / 100 % 10) * multiply);
@@ -424,6 +429,7 @@ int hendel_user()
       Serial.println("wrong pass ");
       return -1;
     }
+    Serial.println("ok pass ");
     int i = 0;
     while(ok)
     {
@@ -435,7 +441,7 @@ int hendel_user()
         i++;
        
       }
-       if(i >= 9 || (input == CHANGE_BATTON && i >= 4))
+       if(i >= PASS_LEN || (input == CHANGE_BATTON && i >= 4))
         {
           ok = 0;
           write_password_to_eeprom(pass);
@@ -476,7 +482,11 @@ void rest_clock()
 bool check_for_pass()
 {
   char input = get_user_input();
-  uint8_t pass[10] = {0};
+  uint8_t pass[PASS_LEN] = {11};
+  for (int i = 0; i < PASS_LEN; i++)
+  {
+    pass[i] = 11;
+  }
   int i = 0;
   bool ok = true;
   while(ok)
@@ -489,7 +499,7 @@ bool check_for_pass()
       i++;
      
     }
-     if(i >= 9 || (input == CHANGE_BATTON && i >= 4))
+     if(i >= PASS_LEN || (input == CHANGE_BATTON && i >= 4))
       {
         ok = 0;
         rest_clock();
