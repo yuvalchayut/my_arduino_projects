@@ -37,6 +37,13 @@ struct Time_format {
   uint8_t hours = 0;
   bool active = false;
 };
+
+struct buzzer_format {
+  int  play_time = 0;
+  int Hz = 0;
+  bool active = false;
+};
+
 bool check_alarms(Time_format this_time, Time_format* alarms_check);
 void to_Time_format(unsigned long num, Time_format* time_set);
 void to_Time_format(uint8_t* arr, Time_format* time_set, int arr_len);
@@ -664,4 +671,10 @@ void to_Time_format(uint8_t* arr, Time_format* time_set, int arr_len)
     mul = mul * 10;
   }
   to_Time_format(arr_to_int, time_set);
+}
+
+
+void play_alarm()
+{
+  
 }
