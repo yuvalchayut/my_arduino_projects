@@ -1,30 +1,37 @@
 #include <LiquidCrystal.h>
 #include <EEPROM.h>
+#include <SHA256.h>
 
 
 void print_number(int num);
 void print_number_full(char Seconds, char Minutes, char Hours);
-bool write_password_to_eeprom(unsigned long pass);
+bool write_password_to_eeprom(uint8_t* pass);
 uint32_t murmur3_32(const uint8_t* key, size_t len, uint32_t seed);
 char get_user_input();
 int hendel_user();
 void rest_clock();
+bool validate_password(uint8_t* pass);
+bool check_for_pass();
 
 
 #define EEPROM_DEFAULT_START 4
 #define BATTON_PIN_DEFAULT_START 34
 #define BATTON_LIST_LEN 11
 #define PRINT_4_SEGMENT_DELAY 1000
-#define CHANGE_TIME_BATTON 10
-#define CHANGE_PASS_BATTON 11
+#define CHANGE_TIME_BATTON 0
+#define CHANGE_PASS_BATTON 1
+#define CHANGE_BATTON 10
 #define FIRST_PIN 22
 #define SECOND_PIN 45
+#define PASS_HASH 32
 
 
 const uint32_t SALT = 0x9E377199;
 //password related
 char last_char = 0;
 unsigned long password = 0;
+
+SHA256 sha256;
 
 
 //EEPROM vars 
@@ -89,7 +96,7 @@ void setup() {
   {
     button_arr[i] = BATTON_PIN_DEFAULT_START + i;
     pinMode(button_arr[i], INPUT);
-    Serial.println(i + BATTON_PIN_DEFAULT_START);
+    //Serial.println(i + BATTON_PIN_DEFAULT_START);
   }
   
   pinMode(potentiometer, INPUT);
@@ -122,21 +129,24 @@ void setup() {
   EEPROM.get(eeprom_base_address, eepromAddress); 
   Serial.print("Read from EEPROM: ");
   Serial.println(eepromAddress);
+  
   delay(1000);
 }
 
 // the loop routine runs over and over again forever:
 void loop() {
   currentMillis = millis();
-  if (currentMillis - last_clock_cycle >= 100)
+  if (currentMillis - last_clock_cycle >= 1000)
   {
-    last_clock_cycle += 100;
+    last_clock_cycle += 1000;
     seconds++;
     if (seconds % 100 > 59)
     {
+      seconds = 0;
       minutes++;
       if(minutes % 100 > 59)
       {
+        minutes = 0;
         hours++;
       }
     }
@@ -167,94 +177,94 @@ void print_number(int num, int start)
   switch (num)
   {
   case 0:
+    digitalWrite(pinA, LOW);
+    digitalWrite(pinB, LOW);
+    digitalWrite(pinC, LOW);
+    digitalWrite(pinD, LOW);
+    digitalWrite(pinE, LOW);
+    digitalWrite(pinF, LOW);
+    digitalWrite(pinG, HIGH);
+    break;
+  case 1:
     digitalWrite(pinA, HIGH);
-    digitalWrite(pinB, HIGH);
-    digitalWrite(pinC, HIGH);
+    digitalWrite(pinB, LOW);
+    digitalWrite(pinC, LOW);
     digitalWrite(pinD, HIGH);
+    digitalWrite(pinE, HIGH);
+    digitalWrite(pinF, HIGH);
+    digitalWrite(pinG, HIGH);
+    break;
+  case 2:
+    digitalWrite(pinA, LOW);
+    digitalWrite(pinB, LOW);
+    digitalWrite(pinC, HIGH);
+    digitalWrite(pinD, LOW);
+    digitalWrite(pinE, LOW);
+    digitalWrite(pinF, HIGH);
+    digitalWrite(pinG, LOW);
+    break;
+  case 3:
+    digitalWrite(pinA, LOW);
+    digitalWrite(pinB, LOW);
+    digitalWrite(pinC, LOW);
+    digitalWrite(pinD, LOW);
     digitalWrite(pinE, HIGH);
     digitalWrite(pinF, HIGH);
     digitalWrite(pinG, LOW);
     break;
-  case 1:
+  case 4:
+    digitalWrite(pinA,  HIGH);
+    digitalWrite(pinB, LOW);
+    digitalWrite(pinC, LOW);
+    digitalWrite(pinD, HIGH);
+    digitalWrite(pinE, HIGH);
+    digitalWrite(pinF, LOW);
+    digitalWrite(pinG, LOW);
+    break;
+  case 5:
     digitalWrite(pinA, LOW);
     digitalWrite(pinB, HIGH);
-    digitalWrite(pinC, HIGH);
+    digitalWrite(pinC, LOW);
+    digitalWrite(pinD, LOW);
+    digitalWrite(pinE, HIGH);
+    digitalWrite(pinF, LOW);
+    digitalWrite(pinG, LOW);
+    break;
+  case 6:
+    digitalWrite(pinA,  LOW);
+    digitalWrite(pinB, HIGH);
+    digitalWrite(pinC, LOW);
+    digitalWrite(pinD, LOW);
+    digitalWrite(pinE, LOW);
+    digitalWrite(pinF,  LOW);
+    digitalWrite(pinG, LOW);
+    break;
+  case 7:
+    digitalWrite(pinA, LOW);
+    digitalWrite(pinB, LOW);
+    digitalWrite(pinC, LOW);
+    digitalWrite(pinD, HIGH);
+    digitalWrite(pinE, HIGH);
+    digitalWrite(pinF, HIGH);
+    digitalWrite(pinG, HIGH);
+    break;
+  case 8:
+    digitalWrite(pinA, LOW);
+    digitalWrite(pinB, LOW);
+    digitalWrite(pinC, LOW);
     digitalWrite(pinD, LOW);
     digitalWrite(pinE, LOW);
     digitalWrite(pinF, LOW);
     digitalWrite(pinG, LOW);
     break;
-  case 2:
-    digitalWrite(pinA,  HIGH);
-    digitalWrite(pinB, HIGH);
-    digitalWrite(pinC, LOW);
-    digitalWrite(pinD, HIGH);
-    digitalWrite(pinE, HIGH);
-    digitalWrite(pinF,  LOW);
-    digitalWrite(pinG, HIGH);
-    break;
-  case 3:
-    digitalWrite(pinA,  HIGH);
-    digitalWrite(pinB, HIGH);
-    digitalWrite(pinC, HIGH);
-    digitalWrite(pinD, HIGH);
-    digitalWrite(pinE, LOW);
-    digitalWrite(pinF,  LOW);
-    digitalWrite(pinG, HIGH);
-    break;
-  case 4:
-    digitalWrite(pinA,  LOW);
-    digitalWrite(pinB, HIGH);
-    digitalWrite(pinC, HIGH);
-    digitalWrite(pinD, LOW);
-    digitalWrite(pinE, LOW);
-    digitalWrite(pinF,  HIGH);
-    digitalWrite(pinG, HIGH);
-    break;
-  case 5:
-    digitalWrite(pinA,  HIGH);
-    digitalWrite(pinB, LOW);
-    digitalWrite(pinC, HIGH);
-    digitalWrite(pinD, HIGH);
-    digitalWrite(pinE, LOW);
-    digitalWrite(pinF,  HIGH);
-    digitalWrite(pinG, HIGH);
-    break;
-  case 6:
-    digitalWrite(pinA,  HIGH);
-    digitalWrite(pinB, LOW);
-    digitalWrite(pinC, HIGH);
-    digitalWrite(pinD, HIGH);
-    digitalWrite(pinE, HIGH);
-    digitalWrite(pinF,  HIGH);
-    digitalWrite(pinG, HIGH);
-    break;
-  case 7:
-    digitalWrite(pinA,  HIGH);
-    digitalWrite(pinB, HIGH);
-    digitalWrite(pinC, HIGH);
-    digitalWrite(pinD, LOW);
-    digitalWrite(pinE, LOW);
-    digitalWrite(pinF,  LOW);
-    digitalWrite(pinG, LOW);
-    break;
-  case 8:
-    digitalWrite(pinA,  HIGH);
-    digitalWrite(pinB, HIGH);
-    digitalWrite(pinC, HIGH);
-    digitalWrite(pinD, HIGH);
-    digitalWrite(pinE, HIGH);
-    digitalWrite(pinF,  HIGH);
-    digitalWrite(pinG, HIGH);
-    break;
   case 9:
-    digitalWrite(pinA,  HIGH);
-    digitalWrite(pinB, HIGH);
-    digitalWrite(pinC, HIGH);
-    digitalWrite(pinD, HIGH);
-    digitalWrite(pinE, LOW);
-    digitalWrite(pinF,  HIGH);
-    digitalWrite(pinG, HIGH);
+    digitalWrite(pinA, LOW);
+    digitalWrite(pinB, LOW);
+    digitalWrite(pinC, LOW);
+    digitalWrite(pinD, LOW);
+    digitalWrite(pinE, HIGH);
+    digitalWrite(pinF, LOW);
+    digitalWrite(pinG, LOW);
     break;
   }
 }
@@ -262,68 +272,75 @@ void print_number(int num, int start)
 //gives print_number the write numbers and is in charg of liting the corect screens
 void print_number_full(char Seconds, char Minutes, char Hours)
 {
-  digitalWrite(D1, HIGH);
-  digitalWrite(D2, HIGH);
-  digitalWrite(D3, HIGH);
-  digitalWrite(D4, HIGH);
-  digitalWrite(D5, HIGH);
-  digitalWrite(D6, HIGH);
-   digitalWrite(D7, HIGH);
+  digitalWrite(D1, LOW);
+  digitalWrite(D2, LOW);
+  digitalWrite(D3, LOW);
+  digitalWrite(D4, LOW);
+  digitalWrite(D5, LOW);
+  digitalWrite(D6, LOW);
+  digitalWrite(D7, HIGH);
   digitalWrite(D8, HIGH);
   int digit = Seconds % 10;
-  
-  Seconds = Seconds / 10;
-  digitalWrite(D6, LOW);
-  print_number(digit, SECOND_PIN);
-  delayMicroseconds(PRINT_4_SEGMENT_DELAY);
-  digitalWrite(D6, HIGH);
-  
-  digit = Seconds % 10;
-  digitalWrite(D5, LOW);
-  print_number(digit, SECOND_PIN);
-  delayMicroseconds(PRINT_4_SEGMENT_DELAY);
-  digitalWrite(D5, HIGH);
-
-  digit = Minutes % 10;
-  Minutes = Minutes / 10;
-  digitalWrite(D4, LOW);
-  print_number(digit, FIRST_PIN);
-  delayMicroseconds(PRINT_4_SEGMENT_DELAY);
-  digitalWrite(D4, HIGH);
-
-  digit = Minutes % 10;
-  digitalWrite(D3, LOW);
-  print_number(digit, FIRST_PIN);
-  delayMicroseconds(PRINT_4_SEGMENT_DELAY);
-  digitalWrite(D3, HIGH);
 
   digit = Hours % 10;
   Hours = Hours / 10;
-  digitalWrite(D2, LOW);
+  digitalWrite(D2, HIGH);
   print_number(digit, FIRST_PIN);
   delayMicroseconds(PRINT_4_SEGMENT_DELAY);
-  digitalWrite(D2, HIGH);
+  digitalWrite(D2, LOW);
+
+  digit = Seconds % 10;
+  Seconds = Seconds / 10;
+  digitalWrite(D6, HIGH);
+  print_number(digit, SECOND_PIN);
+  delayMicroseconds(PRINT_4_SEGMENT_DELAY);
+  digitalWrite(D6, LOW);
+
+  digit = Minutes % 10;
+  Minutes = Minutes / 10;
+  digitalWrite(D4, HIGH);
+  print_number(digit, FIRST_PIN);
+  delayMicroseconds(PRINT_4_SEGMENT_DELAY);
+  digitalWrite(D4, LOW);
 
   digit = Hours % 10;
-  digitalWrite(D1, LOW);
+  digitalWrite(D1, HIGH);
   print_number(digit, FIRST_PIN);
   delayMicroseconds(PRINT_4_SEGMENT_DELAY);
-  digitalWrite(D1, HIGH);
+  digitalWrite(D1, LOW);
+  
+  digit = Seconds % 10;
+  digitalWrite(D5, HIGH);
+  print_number(digit, SECOND_PIN);
+  delayMicroseconds(PRINT_4_SEGMENT_DELAY);
+  digitalWrite(D5, LOW);
+  
+  
+
+  digit = Minutes % 10;
+  digitalWrite(D3, HIGH);
+  print_number(digit, FIRST_PIN);
+  delayMicroseconds(PRINT_4_SEGMENT_DELAY);
+  digitalWrite(D3, LOW);
+
+ 
 }
 
 //puts a value in the eeprom and checks its ok if not it moves the eeprom location to a fress place and returns false else retur true
-bool write_password_to_eeprom(unsigned long pass)
+bool write_password_to_eeprom(uint8_t* pass)
 {
-  unsigned long test_num = 0;
-  unsigned long pass_incript = murmur3_32((uint8_t*)pass, sizeof(pass), SALT);
-  //EEPROM.put(eepromAddress, pass_incript); 
-  Serial.print("pass_incript: ");
-  Serial.println(pass_incript);
+  uint8_t test_num[PASS_HASH];
+  uint8_t result[PASS_HASH];
+  sha256.reset();
+  sha256.update(pass, 10);
+  sha256.finalize(result, PASS_HASH);
+  EEPROM.put(eepromAddress, result); 
+  Serial.print("result: ");
   EEPROM.get(eepromAddress, test_num); 
-  if(test_num != pass_incript)
+  if(memcmp(test_num, result, PASS_HASH) != 0)
   {
-    //eepromAddress += 4;
-    //EEPROM.put(eeprom_base_address, eepromAddress);
+    eepromAddress += PASS_HASH;
+    EEPROM.put(eeprom_base_address, eepromAddress);
     Serial.println("eeprom err");
     return false;
   }
@@ -331,44 +348,6 @@ bool write_password_to_eeprom(unsigned long pass)
 }
 
 //encripts the password so it will be abit harder to crack if you get a hold of the arduino
-uint32_t murmur3_32(const uint8_t* key, size_t len, uint32_t seed) 
-{
-    uint32_t h = seed;
-    if (len > 3) {
-        const uint32_t* key_x4 = (const uint32_t*)key;
-        size_t i = len >> 2;
-        do {
-            uint32_t k = *key_x4++;
-            k *= 0xcc9e2d51;
-            k = (k << 15) | (k >> 17);
-            k *= 0x1b873593;
-            h ^= k;
-            h = (h << 13) | (h >> 19);
-            h = h * 5 + 0xe6546b64;
-        } while (--i);
-        key = (const uint8_t*)key_x4;
-    }
-    if (len & 3) {
-        size_t i = len & 3;
-        uint32_t k = 0;
-        key = &key[i - 1];
-        do {
-            k <<= 8;
-            k |= *key--;
-        } while (--i);
-        k *= 0xcc9e2d51;
-        k = (k << 15) | (k >> 17);
-        k *= 0x1b873593;
-        h ^= k;
-    }
-    h ^= len;
-    h ^= h >> 16;
-    h *= 0x85ebca6b;
-    h ^= h >> 13;
-    h *= 0xc2b2ae35;
-    h ^= h >> 16;
-    return h;
-}
 
 char get_user_input()
 {
@@ -404,21 +383,32 @@ char get_user_input()
 int hendel_user()
 {
   unsigned long multiply = 1;
-  unsigned long pass = 0;
+  uint8_t pass[10] = {0};
   //static int len = 10;
   int ok = 1;
   //static char* input_char = (char*)calloc(len, sizeof(char));
   char input = get_user_input();
   if(input == CHANGE_TIME_BATTON)
   {
+    if(check_for_pass() == false)
+    {
+      Serial.println("wrong pass ");
+      return -1;
+    }
     while(ok)
     {
       count = count % multiply +((analogRead(potentiometer) / 100 % 10) * multiply);
+      unsigned long calc_count = count;
+      seconds = calc_count % 100;
+      calc_count = calc_count / 100;
+      minutes = calc_count % 100;
+      calc_count = calc_count / 100;
+      hours = calc_count % 100;
       print_number_full(seconds, minutes, hours);
-      if(get_user_input() == CHANGE_TIME_BATTON)
+      if(get_user_input() == CHANGE_BATTON)
       {
         multiply = multiply * 10;
-        if(multiply >= 1001)
+        if(multiply >= 100001)
         {
           ok = 0;
           last_clock_cycle = millis();
@@ -429,18 +419,23 @@ int hendel_user()
   }
   else if(input == CHANGE_PASS_BATTON)
   {
-    pass = 0;
+    if(check_for_pass() == false)
+    {
+      Serial.println("wrong pass ");
+      return -1;
+    }
+    int i = 0;
     while(ok)
     {
       input = get_user_input();
-      if(input != -1 && input != CHANGE_PASS_BATTON)
+      if(input != -1 && input != CHANGE_BATTON)
       {
         //input pass
-        pass += input * multiply;
-        multiply = multiply * 10;
+        pass[i] = input;
+        i++;
        
       }
-       if(multiply >= 100000001 || (input == CHANGE_PASS_BATTON && multiply >= 1001))
+       if(i >= 9 || (input == CHANGE_BATTON && i >= 4))
         {
           ok = 0;
           write_password_to_eeprom(pass);
@@ -455,16 +450,65 @@ int hendel_user()
 void rest_clock()
 {
   currentMillis = millis();
-  while (currentMillis - last_clock_cycle >= 60000)
+  while (currentMillis - last_clock_cycle >= 1000)
   {
     currentMillis = millis();
-    last_clock_cycle += 60000;
-    count++;
-    if (count % 100 > 59)
+    if (currentMillis - last_clock_cycle >= 1000)
     {
-      count += -(count % 100) + 100 ;
+      last_clock_cycle += 1000;
+      seconds++;
+      if (seconds % 100 > 59)
+      {
+        seconds = 0;
+        minutes++;
+        if(minutes % 100 > 59)
+        {
+          minutes = 0;
+          hours++;
+        }
+      }
+      hours = hours % 24;
     }
-    count = count % 2400;
   }
   last_print = millis();
+}
+
+bool check_for_pass()
+{
+  char input = get_user_input();
+  uint8_t pass[10] = {0};
+  int i = 0;
+  bool ok = true;
+  while(ok)
+  {
+    input = get_user_input();
+    if(input != -1 && input != CHANGE_BATTON)
+    {
+      //input pass
+      pass[i] = input;
+      i++;
+     
+    }
+     if(i >= 9 || (input == CHANGE_BATTON && i >= 4))
+      {
+        ok = 0;
+        rest_clock();
+      }
+  }
+  return validate_password(pass);
+}
+
+bool validate_password(uint8_t* pass)
+{
+  uint8_t test_num[PASS_HASH];
+  uint8_t result[PASS_HASH];
+  sha256.reset();
+  sha256.update(pass, 10);
+  sha256.finalize(result, PASS_HASH);
+  EEPROM.get(eepromAddress, test_num); 
+  if(memcmp(test_num, result, PASS_HASH) == 0)
+  {
+    return true;
+  }
+  return false;
 }
