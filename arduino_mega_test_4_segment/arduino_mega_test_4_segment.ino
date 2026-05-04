@@ -13,7 +13,7 @@ int hendel_user();
 void rest_clock();
 bool validate_password(uint8_t* pass);
 bool check_for_pass();
-bool check_alarms(Time_format this_time, Time_format* alarms_check);
+
 
 
 #define EEPROM_DEFAULT_START 4
@@ -34,7 +34,9 @@ struct Time_format {
   uint8_t seconds = 0;
   uint8_t minutes = 0;
   uint8_t hours = 0;
+  bool active = false;
 };
+bool check_alarms(Time_format this_time, Time_format* alarms_check);
 
 
 //const uint32_t SALT = 0x9E377199;
@@ -151,7 +153,6 @@ void loop() {
   {
     last_clock_cycle += 1000;
     clock_time.seconds++;
-    check_alarms(clock_time, alarms);
     if (clock_time.seconds % 100 > 59)
     {
       clock_time.seconds = 0;
@@ -163,6 +164,7 @@ void loop() {
       }
     }
     clock_time.hours = clock_time.hours % 24;
+    check_alarms(clock_time, alarms);
   }
   if (currentMillis - last_print >= 10)
   {
@@ -366,10 +368,13 @@ char get_user_input()
   
   int i = 0;
   int ok = 0;
-  static char input_buffer;
-  static int input_buffer_reset = -1;//stops exidental reads
+  static char input_buffer = -1;
+  static unsigned long last_press_time = 0;//stops exidental reads
   char input_buffer_check = input_buffer;
-  
+  if ( millis() - last_press_time < 50)
+  {
+    return -1;
+  }
   for(i = 0; i < BATTON_LIST_LEN; i++)
   {
     if(digitalRead(button_arr[i]) == 1)
@@ -378,11 +383,7 @@ char get_user_input()
       ok++;
     }
   }
-  if (input_buffer_reset >= 0)
-  {
-    input_buffer_reset--;
-  }
-  if (ok != 1 && input_buffer_reset <= 0)
+  if (ok != 1)
   {
     input_buffer = -1;
     return -1;
@@ -392,7 +393,7 @@ char get_user_input()
     return -1;
   }
   input_buffer = input_buffer_check;
-  input_buffer_reset = 5;
+  last_press_time = millis();
   Serial.print("Read from bufer: ");
   Serial.println(int(input_buffer_check));
   return input_buffer;
@@ -495,6 +496,7 @@ int hendel_user()
         multiply = multiply * 10;
         if(multiply >= 100001)
         {
+          alarms[j].active = true;
           ok = 0;
           rest_clock();
         }
@@ -533,7 +535,7 @@ void rest_clock()
 
 bool check_for_pass()
 {
-  char input = get_user_input();
+  char input = -1;
   uint8_t pass[PASS_LEN] = {11};
   for (int i = 0; i < PASS_LEN; i++)
   {
@@ -579,17 +581,17 @@ bool validate_password(uint8_t* pass)
 bool check_alarms(Time_format this_time, Time_format* alarms_check)
 {
   int j = 0;
-  if(this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
+  if(alarms_check[j].active == true && this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
   {
     return true;
   }
   j++;
-  if(this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
+  if(alarms_check[j].active == true && this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
   {
     return true;
   }
   j++;
-  if(this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
+  if(alarms_check[j].active == true && this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
   {
     return true;
   }
