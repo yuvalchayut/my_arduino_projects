@@ -28,6 +28,7 @@ bool check_for_pass();
 #define SECOND_PIN 45
 #define PASS_HASH 32
 #define PASS_LEN 10
+#define ALARM_COUNT 3
 
 
 struct Time_format {
@@ -37,6 +38,9 @@ struct Time_format {
   bool active = false;
 };
 bool check_alarms(Time_format this_time, Time_format* alarms_check);
+void to_Time_format(unsigned long num, Time_format* time_set);
+void to_Time_format(uint8_t* arr, Time_format* time_set, int arr_len);
+void to_Time_format(int num, Time_format* time_set);
 
 
 //const uint32_t SALT = 0x9E377199;
@@ -87,13 +91,14 @@ int D8 = 21;
 //
 
 Time_format clock_time;
-Time_format alarms[3];
+Time_format alarms[ALARM_COUNT];
 
 unsigned long count = 0;
 int potentiometer = A5;
 
 // the setup routine runs once when you press reset:
 void setup() {
+  randomSeed(analogRead(A0)); 
   Serial.begin(9600);
   // check the eeprom_base_address is valid
   EEPROM.get(eeprom_base_address, counterValue);
@@ -423,11 +428,7 @@ int hendel_user()
     {
       count = count % multiply +((analogRead(potentiometer) / 100 % 10) * multiply);
       unsigned long calc_count = count;
-      clock_time.seconds = calc_count % 100;
-      calc_count = calc_count / 100;
-      clock_time.minutes = calc_count % 100;
-      calc_count = calc_count / 100;
-      clock_time.hours = calc_count % 100;
+      to_Time_format(calc_count, &clock_time);
       print_number_full(clock_time.seconds, clock_time.minutes, clock_time.hours);
       if(get_user_input() == CHANGE_BATTON)
       {
@@ -477,7 +478,7 @@ int hendel_user()
       return -1;
     }
     Serial.println("ok pass ");
-    while(j >= 3 ||  j < 0)
+    while(j >= ALARM_COUNT ||  j < 0)
     {
       j = get_user_input();
     }
@@ -485,11 +486,7 @@ int hendel_user()
     {
       count = count % multiply +((analogRead(potentiometer) / 100 % 10) * multiply);
       unsigned long calc_count = count;
-      alarms[j].seconds = calc_count % 100;
-      calc_count = calc_count / 100;
-      alarms[j].minutes = calc_count % 100;
-      calc_count = calc_count / 100;
-      alarms[j].hours = calc_count % 100;
+      to_Time_format(calc_count, &clock_time);
       print_number_full(alarms[j].seconds, alarms[j].minutes, alarms[j].hours);
       if(get_user_input() == CHANGE_BATTON)
       {
@@ -581,19 +578,87 @@ bool validate_password(uint8_t* pass)
 bool check_alarms(Time_format this_time, Time_format* alarms_check)
 {
   int j = 0;
-  if(alarms_check[j].active == true && this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
+  for (j = 0; j <= ALARM_COUNT; j++)
   {
-    return true;
-  }
-  j++;
-  if(alarms_check[j].active == true && this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
-  {
-    return true;
-  }
-  j++;
-  if(alarms_check[j].active == true && this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
-  {
-    return true;
+    if(alarms_check[j].active == true && this_time.seconds == alarms_check[j].seconds && this_time.minutes == alarms_check[j].minutes && this_time.hours == alarms_check[j].hours)
+    {
+      return true;
+    }
   }
   return false;
+}
+
+void timer_awake_validation()
+{
+  char input = -1;
+  Time_format alarm_code;
+  uint8_t pass[PASS_LEN] = {11};
+  uint8_t rand_arr [PASS_LEN];
+  for (int i = 0; i < PASS_LEN; i++)
+  {
+    pass[i] = 11;
+    rand_arr[i] = random(10);
+  }
+  int i = 0;
+  bool ok = true;
+  while(ok)
+  {
+    to_Time_format(rand_arr, &alarm_code, PASS_LEN - i);
+    print_number_full(alarm_code.seconds, alarm_code.minutes, alarm_code.hours);
+    input = get_user_input();
+    if(input != -1 && input != CHANGE_BATTON)
+    {
+      //input pass
+      pass[i] = input;
+      i++;
+    }
+    if(i >= PASS_LEN)
+    {
+      if (memcmp(pass, rand_arr, PASS_LEN) == 0)
+      {
+        ok = 0;
+        rest_clock();
+      }
+      else
+      {
+        for (i = 0; i < PASS_LEN; i++)
+        {
+          pass[i] = 11;
+          rand_arr[i] = random(10);
+        }
+        i = 0;
+      }
+    }
+  }
+
+}
+
+void to_Time_format(int num, Time_format* time_set)
+{
+  time_set->seconds = num % 100;
+  num = num / 100;
+  time_set->minutes = num % 100;
+  num = num / 100;
+  time_set->hours = num % 100;
+}
+
+void to_Time_format(unsigned long num, Time_format* time_set)
+{
+  time_set->seconds = num % 100;
+  num = num / 100;
+  time_set->minutes = num % 100;
+  num = num / 100;
+  time_set->hours = num % 100;
+}
+
+void to_Time_format(uint8_t* arr, Time_format* time_set, int arr_len)
+{
+  int arr_to_int;
+  int mul = 1;
+  for(int i = 0; i < arr_len && i < 6; i++)
+  {
+    arr_to_int += arr[i] * mul;
+    mul = mul * 10;
+  }
+  to_Time_format(arr_to_int, time_set);
 }
