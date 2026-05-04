@@ -29,6 +29,17 @@ bool check_for_pass();
 #define PASS_HASH 32
 #define PASS_LEN 10
 #define ALARM_COUNT 3
+#define MAX_ALARM_LEN 100
+#define ALARM_START_ADDR 200
+
+//music
+
+#define NOTE_B4  494
+#define NOTE_D5  587
+#define NOTE_E5  659
+#define NOTE_FS5 740
+#define NOTE_G5  784
+#define REST     0
 
 
 struct Time_format {
@@ -39,9 +50,9 @@ struct Time_format {
 };
 
 struct buzzer_format {
-  int  play_time = 0;
-  int Hz = 0;
-  bool active = false;
+  int  play_time;
+  int Hz;
+  bool active;
 };
 
 bool check_alarms(Time_format this_time, Time_format* alarms_check);
@@ -103,8 +114,12 @@ Time_format alarms[ALARM_COUNT];
 unsigned long count = 0;
 int potentiometer = A5;
 
+buzzer_format alarm_rington[MAX_ALARM_LEN];
+int buzzerPin = 10;
+
 // the setup routine runs once when you press reset:
-void setup() {
+void setup() 
+{
   randomSeed(analogRead(A0)); 
   Serial.begin(9600);
   // check the eeprom_base_address is valid
@@ -112,7 +127,19 @@ void setup() {
   if(counterValue == -1)
   {
     Serial.println("seting divice veriabels");
-    EEPROM.put(eeprom_base_address, EEPROM_DEFAULT_START); 
+    EEPROM.put(eeprom_base_address, EEPROM_DEFAULT_START);
+    eepromAddress = EEPROM_DEFAULT_START;
+    uint8_t pass[PASS_LEN] = {11};
+    for (int i = 0; i < PASS_LEN; i++)
+    {
+      pass[i] = 11;
+    }
+    pass[0] = 0;
+    pass[1] = 0;
+    pass[2] = 0;
+    pass[3] = 0;
+    write_password_to_eeprom(pass);
+    EEPROM.put(ALARM_START_ADDR, alarms);
   }
 
 
@@ -122,6 +149,11 @@ void setup() {
     button_arr[i] = BATTON_PIN_DEFAULT_START + i;
     pinMode(button_arr[i], INPUT);
     //Serial.println(i + BATTON_PIN_DEFAULT_START);
+  }
+
+  for(i = 0; i < MAX_ALARM_LEN; i++)
+  {
+    alarm_rington[i] = {0, 0, false};
   }
   
   pinMode(potentiometer, INPUT);
@@ -152,14 +184,20 @@ void setup() {
 
   //write_password_to_eeprom(12313);
   EEPROM.get(eeprom_base_address, eepromAddress); 
+  EEPROM.get(ALARM_START_ADDR, alarms);
   Serial.print("Read from EEPROM: ");
   Serial.println(eepromAddress);
-  timer_awake_validation();
+  
+
+  load_centuries_melody(alarm_rington, MAX_ALARM_LEN);
+
+
   delay(1000);
 }
 
 // the loop routine runs over and over again forever:
-void loop() {
+void loop() 
+{
   
   currentMillis = millis();
   if (currentMillis - last_clock_cycle >= 1000)
@@ -177,7 +215,10 @@ void loop() {
       }
     }
     clock_time.hours = clock_time.hours % 24;
-    check_alarms(clock_time, alarms);
+    if(check_alarms(clock_time, alarms) == true)
+    {
+      timer_awake_validation();
+    }
   }
   if (currentMillis - last_print >= 10)
   {
@@ -369,7 +410,6 @@ bool write_password_to_eeprom(uint8_t* pass)
     eepromAddress += PASS_HASH;
     EEPROM.put(eeprom_base_address, eepromAddress);
     Serial.println("eeprom err");
-    return false;
   }
   return true;
 }
@@ -503,6 +543,7 @@ int hendel_user()
         {
           alarms[j].active = true;
           ok = 0;
+          EEPROM.put(ALARM_START_ADDR, alarms);
           rest_clock();
         }
       }
@@ -612,6 +653,7 @@ void timer_awake_validation()
   bool ok = true;
   while(ok)
   {
+    play_alarm(alarm_rington);
     to_Time_format(rand_arr + (i * sizeof(uint8_t)), &alarm_code, PASS_LEN - i);
     print_number_full(alarm_code.seconds, alarm_code.minutes, alarm_code.hours);
     input = get_user_input();
@@ -674,7 +716,68 @@ void to_Time_format(uint8_t* arr, Time_format* time_set, int arr_len)
 }
 
 
-void play_alarm()
+void play_alarm(buzzer_format song_array[])
+{
+  static int current_note = -1;
+  static unsigned long start_of_current_note = 0;
+  if (current_note == -1 || millis() - start_of_current_note >= song_array[current_note].play_time)
+  {
+    start_of_current_note = millis();
+    current_note++;
+    if(song_array[current_note].active == false)
+    {
+      current_note = 0;
+    }
+    if(song_array[current_note].Hz == 0)
+    {
+      noTone(buzzerPin);
+    }
+    else
+    {
+      tone(buzzerPin, song_array[current_note].Hz, song_array[current_note].play_time);
+    }
+  }
+}
+
+void load_centuries_melody(buzzer_format song_array[], int max_size)
 {
   
+  int i = 0;
+
+  // Make sure we don't write past the array limit
+  // "Doo doo doo doo..."
+  if (i < max_size) song_array[i++] = {300, NOTE_FS5, true};
+  if (i < max_size) song_array[i++] = {150, NOTE_G5,  true};
+  if (i < max_size) song_array[i++] = {150, NOTE_FS5, true};
+  if (i < max_size) song_array[i++] = {300, NOTE_E5,  true};
+  
+  if (i < max_size) song_array[i++] = {50,  REST,     true}; // Tiny pause
+
+  // "...doo doo doo"
+  if (i < max_size) song_array[i++] = {150, NOTE_D5,  true};
+  if (i < max_size) song_array[i++] = {150, NOTE_E5,  true};
+  if (i < max_size) song_array[i++] = {400, NOTE_FS5, true};
+  
+  if (i < max_size) song_array[i++] = {200, REST,     true}; // Pause
+
+  // "Doo doo doo doo..."
+  if (i < max_size) song_array[i++] = {300, NOTE_D5,  true};
+  if (i < max_size) song_array[i++] = {150, NOTE_E5,  true};
+  if (i < max_size) song_array[i++] = {150, NOTE_D5,  true};
+  if (i < max_size) song_array[i++] = {300, NOTE_B4,  true};
+
+  if (i < max_size) song_array[i++] = {50,  REST,     true}; // Tiny pause
+
+  // "...doo doo doo"
+  if (i < max_size) song_array[i++] = {150, NOTE_D5,  true};
+  if (i < max_size) song_array[i++] = {150, NOTE_E5,  true};
+  if (i < max_size) song_array[i++] = {400, NOTE_FS5, true};
+
+  // Mark the very next struct as inactive so your loop knows the song is over
+  if (i < max_size) 
+  {
+    song_array[i].active = false; 
+  }
 }
+
+
