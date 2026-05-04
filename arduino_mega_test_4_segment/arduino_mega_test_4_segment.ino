@@ -355,6 +355,7 @@ char get_user_input()
   int i = 0;
   int ok = 0;
   static char input_buffer;
+  static int input_buffer_reset = -1;//stops exidental reads
   char input_buffer_check = input_buffer;
   
   for(i = 0; i < BATTON_LIST_LEN; i++)
@@ -365,7 +366,11 @@ char get_user_input()
       ok++;
     }
   }
-  if (ok != 1)
+  if (input_buffer_reset >= 0)
+  {
+    input_buffer_reset--;
+  }
+  if (ok != 1 && input_buffer_reset <= 0)
   {
     input_buffer = -1;
     return -1;
@@ -375,6 +380,7 @@ char get_user_input()
     return -1;
   }
   input_buffer = input_buffer_check;
+  input_buffer_reset = 5;
   Serial.print("Read from bufer: ");
   Serial.println(int(input_buffer_check));
   return input_buffer;
