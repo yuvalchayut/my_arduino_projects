@@ -23,6 +23,7 @@ bool check_for_pass();
 #define CHANGE_TIME_BATTON 0
 #define CHANGE_PASS_BATTON 1
 #define ADD_ALARM_BATTON 2
+#define REMOVE_ALARM_BATTON 3
 #define CHANGE_BATTON 10
 #define FIRST_PIN 22
 #define SECOND_PIN 45
@@ -31,6 +32,7 @@ bool check_for_pass();
 #define ALARM_COUNT 3
 #define MAX_ALARM_LEN 100
 #define ALARM_START_ADDR 200
+
 
 //music
 
@@ -534,7 +536,7 @@ int hendel_user()
     {
       count = count % multiply +((analogRead(potentiometer) / 100 % 10) * multiply);
       unsigned long calc_count = count;
-      to_Time_format(calc_count, &clock_time);
+      to_Time_format(calc_count, &alarms[j]);
       print_number_full(alarms[j].seconds, alarms[j].minutes, alarms[j].hours);
       if(get_user_input() == CHANGE_BATTON)
       {
@@ -548,6 +550,23 @@ int hendel_user()
         }
       }
     }
+  }
+  else if(input == REMOVE_ALARM_BATTON)
+  {
+    int j = -1;
+    if(check_for_pass() == false)
+    {
+      Serial.println("wrong pass ");
+      return -1;
+    }
+    Serial.println("ok pass ");
+    while(j >= ALARM_COUNT ||  j < 0)
+    {
+      j = get_user_input();
+    }
+    alarms[j].active = false;
+    EEPROM.put(ALARM_START_ADDR, alarms);
+    rest_clock();
   }
   return 0;
 }
