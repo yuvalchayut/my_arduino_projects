@@ -1,6 +1,7 @@
-//#include <LiquidCrystal.h>
 #include <EEPROM.h>
 #include <SHA256.h>
+#include <Tone.h> // Include the new library
+
 
 
 
@@ -24,24 +25,106 @@ bool check_for_pass();
 #define CHANGE_PASS_BATTON 1
 #define ADD_ALARM_BATTON 2
 #define REMOVE_ALARM_BATTON 3
+#define ACTIVATE_ALARM_BATTON 4
+#define CHANGE_RINGTON_BATTON 5
 #define CHANGE_BATTON 10
 #define FIRST_PIN 22
 #define SECOND_PIN 45
 #define PASS_HASH 32
 #define PASS_LEN 10
 #define ALARM_COUNT 3
-#define MAX_ALARM_LEN 100
+#define RINGTON_COUNT 3
+#define MAX_ALARM_LEN 300
 #define ALARM_START_ADDR 200
+#define RINGTON_ADDR 300
 
 
 //music
+#define REST      0
 
-#define NOTE_B4  494
-#define NOTE_D5  587
-#define NOTE_E5  659
-#define NOTE_FS5 740
-#define NOTE_G5  784
-#define REST     0
+// --- OCTAVE 2 (Heavy Sub-Bass) ---
+#define NOTE_C2   65
+#define NOTE_CS2  69
+#define NOTE_D2   73
+#define NOTE_DS2  78
+#define NOTE_E2   82
+#define NOTE_F2   87
+#define NOTE_FS2  93
+#define NOTE_G2   98
+#define NOTE_GS2  104
+#define NOTE_A2   110
+#define NOTE_AS2  117
+#define NOTE_B2   123
+
+// --- OCTAVE 3 (Standard Bassline) ---
+#define NOTE_C3   131
+#define NOTE_CS3  139
+#define NOTE_D3   147
+#define NOTE_DS3  156
+#define NOTE_E3   165
+#define NOTE_F3   175
+#define NOTE_FS3  185
+#define NOTE_G3   196
+#define NOTE_GS3  208
+#define NOTE_A3   220
+#define NOTE_AS3  233
+#define NOTE_B3   247
+
+// --- OCTAVE 4 (Middle / Rhythm Section) ---
+#define NOTE_C4   262
+#define NOTE_CS4  277
+#define NOTE_D4   294
+#define NOTE_DS4  311
+#define NOTE_E4   330
+#define NOTE_F4   349
+#define NOTE_FS4  370
+#define NOTE_G4   392
+#define NOTE_GS4  415
+#define NOTE_A4   440
+#define NOTE_AS4  466
+#define NOTE_B4   494
+
+// --- OCTAVE 5 (Main Melody Lead) ---
+#define NOTE_C5   523
+#define NOTE_CS5  554
+#define NOTE_D5   587
+#define NOTE_DS5  622
+#define NOTE_E5   659
+#define NOTE_F5   698
+#define NOTE_FS5  740
+#define NOTE_G5   784
+#define NOTE_GS5  831
+#define NOTE_A5   880
+#define NOTE_AS5  932
+#define NOTE_B5   988
+
+// --- OCTAVE 6 (High Harmony) ---
+#define NOTE_C6   1047
+#define NOTE_CS6  1109
+#define NOTE_D6   1175
+#define NOTE_DS6  1245
+#define NOTE_E6   1319
+#define NOTE_F6   1397
+#define NOTE_FS6  1480
+#define NOTE_G6   1568
+#define NOTE_GS6  1661
+#define NOTE_A6   1760
+#define NOTE_AS6  1865
+#define NOTE_B6   1976
+
+// --- OCTAVE 7 (Piercing / Arpeggios) ---
+#define NOTE_C7   2093
+#define NOTE_CS7  2217
+#define NOTE_D7   2349
+#define NOTE_DS7  2489
+#define NOTE_E7   2637
+#define NOTE_F7   2794
+#define NOTE_FS7  2960
+#define NOTE_G7   3136
+#define NOTE_GS7  3322
+#define NOTE_A7   3520
+#define NOTE_AS7  3729
+#define NOTE_B7   3951
 
 
 struct Time_format {
@@ -53,7 +136,8 @@ struct Time_format {
 
 struct buzzer_format {
   int  play_time;
-  int Hz;
+  int Hz_melody;
+  int Hz_bass;
   bool active;
 };
 
@@ -117,7 +201,11 @@ unsigned long count = 0;
 int potentiometer = A5;
 
 buzzer_format alarm_rington[MAX_ALARM_LEN];
-int buzzerPin = 10;
+int pinMelody = 10; 
+int pinBass = 11;
+Tone buzzerMelody;
+Tone buzzerBass;
+uint8_t alarm_type = 0;
 
 // the setup routine runs once when you press reset:
 void setup() 
@@ -142,6 +230,7 @@ void setup()
     pass[3] = 0;
     write_password_to_eeprom(pass);
     EEPROM.put(ALARM_START_ADDR, alarms);
+    EEPROM.put(RINGTON_ADDR, alarm_type);
   }
 
 
@@ -155,7 +244,7 @@ void setup()
 
   for(i = 0; i < MAX_ALARM_LEN; i++)
   {
-    alarm_rington[i] = {0, 0, false};
+    alarm_rington[i] = {0, 0, 0, false};
   }
   
   pinMode(potentiometer, INPUT);
@@ -181,17 +270,21 @@ void setup()
   pinMode(D6, OUTPUT);
   pinMode(D7, OUTPUT);
   pinMode(D8, OUTPUT);
+
+  buzzerMelody.begin(pinMelody);
+  buzzerBass.begin(pinBass);
   
 
 
   //write_password_to_eeprom(12313);
   EEPROM.get(eeprom_base_address, eepromAddress); 
   EEPROM.get(ALARM_START_ADDR, alarms);
+  EEPROM.get(RINGTON_ADDR, alarm_type);
   Serial.print("Read from EEPROM: ");
   Serial.println(eepromAddress);
   
 
-  load_centuries_melody(alarm_rington, MAX_ALARM_LEN);
+  load_alarm(alarm_rington, MAX_ALARM_LEN, alarm_type);
 
 
   delay(1000);
@@ -568,6 +661,40 @@ int hendel_user()
     EEPROM.put(ALARM_START_ADDR, alarms);
     rest_clock();
   }
+  else if(input == ACTIVATE_ALARM_BATTON)
+  {
+    int j = -1;
+    if(check_for_pass() == false)
+    {
+      Serial.println("wrong pass ");
+      return -1;
+    }
+    Serial.println("ok pass ");
+    while(j >= ALARM_COUNT ||  j < 0)
+    {
+      j = get_user_input();
+    }
+    alarms[j].active = true;
+    EEPROM.put(ALARM_START_ADDR, alarms);
+    rest_clock();
+  }
+  else if(input == CHANGE_RINGTON_BATTON)
+  {
+    int j = -1;
+    if(check_for_pass() == false)
+    {
+      Serial.println("wrong pass ");
+      return -1;
+    }
+    Serial.println("ok pass ");
+    while(j >= RINGTON_COUNT ||  j < 0)
+    {
+      j = get_user_input();
+    }
+    alarm_type = j;
+    EEPROM.put(RINGTON_ADDR, alarm_type);
+    rest_clock();
+  }
   return 0;
 }
 
@@ -739,6 +866,7 @@ void play_alarm(buzzer_format song_array[])
 {
   static int current_note = -1;
   static unsigned long start_of_current_note = 0;
+  load_alarm(alarm_rington, MAX_ALARM_LEN, alarm_type);
   if (current_note == -1 || millis() - start_of_current_note >= song_array[current_note].play_time)
   {
     start_of_current_note = millis();
@@ -747,56 +875,304 @@ void play_alarm(buzzer_format song_array[])
     {
       current_note = 0;
     }
-    if(song_array[current_note].Hz == 0)
+    if(song_array[current_note].Hz_melody == REST)
     {
-      noTone(buzzerPin);
+      buzzerMelody.stop();
     }
     else
     {
-      tone(buzzerPin, song_array[current_note].Hz, song_array[current_note].play_time);
+      buzzerMelody.play(song_array[current_note].Hz_melody, song_array[current_note].play_time);
+    }
+
+
+    if(song_array[current_note].Hz_bass == REST)
+    {
+      buzzerBass.stop();
+    }
+    else
+    {
+      buzzerBass.play(song_array[current_note].Hz_bass, song_array[current_note].play_time);
     }
   }
 }
 
-void load_centuries_melody(buzzer_format song_array[], int max_size)
+void load_megalovania_melody(buzzer_format song_array[], int max_size)
 {
-  
   int i = 0;
 
-  // Make sure we don't write past the array limit
-  // "Doo doo doo doo..."
-  if (i < max_size) song_array[i++] = {300, NOTE_FS5, true};
-  if (i < max_size) song_array[i++] = {150, NOTE_G5,  true};
-  if (i < max_size) song_array[i++] = {150, NOTE_FS5, true};
-  if (i < max_size) song_array[i++] = {300, NOTE_E5,  true};
+  // ==========================================================
+  // BPM & TIMING CONFIGURATION (120 BPM Swung)
+  // ==========================================================
+  // To make piezos sound aggressive, we use short plays and sharp rests
+  const int P_16 = 100; // 16th note play
+  const int R_16 = 25;  // 16th note rest (creates the gap)
+  const int P_8  = 200; // 8th note play
+  const int R_8  = 50;  // 8th note rest
+
+  // ==========================================================
+  // PART 1: THE MAIN RIFF (With Swung Timing)
+  // ==========================================================
+  int bass_roots[] = {NOTE_D4, NOTE_C4, NOTE_B3, NOTE_AS3}; // Top octave bass
+  int heavy_bass[] = {NOTE_D3, NOTE_C3, NOTE_B2, NOTE_AS2}; // Sub-octave bass
   
-  if (i < max_size) song_array[i++] = {50,  REST,     true}; // Tiny pause
-
-  // "...doo doo doo"
-  if (i < max_size) song_array[i++] = {150, NOTE_D5,  true};
-  if (i < max_size) song_array[i++] = {150, NOTE_E5,  true};
-  if (i < max_size) song_array[i++] = {400, NOTE_FS5, true};
+  // The exact 8-note sequence following the double root notes
+  int melody[] = {NOTE_D5, NOTE_A4, NOTE_GS4, NOTE_G4, NOTE_F4, NOTE_D4, NOTE_F4, NOTE_G4};
   
-  if (i < max_size) song_array[i++] = {200, REST,     true}; // Pause
+  // Custom dialed timings for maximum groove
+  int play_t[] = {P_16, P_16, P_8, P_8+50, P_8, P_8, P_16, P_16, P_16, P_16}; 
+  int rest_t[] = {R_16, R_16, R_8, R_8,    R_8, R_8, R_16, R_16, R_16, R_16};
 
-  // "Doo doo doo doo..."
-  if (i < max_size) song_array[i++] = {300, NOTE_D5,  true};
-  if (i < max_size) song_array[i++] = {150, NOTE_E5,  true};
-  if (i < max_size) song_array[i++] = {150, NOTE_D5,  true};
-  if (i < max_size) song_array[i++] = {300, NOTE_B4,  true};
+  for (int repeat = 0; repeat < 2; repeat++) 
+  {
+    for (int m = 0; m < 4; m++) 
+    {
+      int b_note = bass_roots[m];
+      int sub_b  = heavy_bass[m];
 
-  if (i < max_size) song_array[i++] = {50,  REST,     true}; // Tiny pause
+      // 1. The iconic double staccato strike: "Da Da"
+      if (i < max_size - 1) song_array[i++] = {play_t[0], b_note, sub_b, true};
+      if (i < max_size - 1) song_array[i++] = {rest_t[0], REST,   REST,  true};
+      if (i < max_size - 1) song_array[i++] = {play_t[1], b_note, sub_b, true};
+      if (i < max_size - 1) song_array[i++] = {rest_t[1], REST,   REST,  true};
 
-  // "...doo doo doo"
-  if (i < max_size) song_array[i++] = {150, NOTE_D5,  true};
-  if (i < max_size) song_array[i++] = {150, NOTE_E5,  true};
-  if (i < max_size) song_array[i++] = {400, NOTE_FS5, true};
+      // 2. The melody riff over the sustained bass root
+      for(int n = 0; n < 8; n++) 
+      {
+        if (i < max_size - 1) song_array[i++] = {play_t[n+2], melody[n], sub_b, true};
+        if (i < max_size - 1) song_array[i++] = {rest_t[n+2], REST,      REST,  true};
+      }
+    }
+  }
 
-  // Mark the very next struct as inactive so your loop knows the song is over
+  // ==========================================================
+  // PART 2: THE BREAKDOWN (Heavy Power Chords)
+  // ==========================================================
+  // We use longer sustains here to contrast the punchy intro
+  
+  // Phrase 1
+  int p2_n1[] = {NOTE_F5, NOTE_F5, NOTE_F5, NOTE_D5, NOTE_D5};
+  int p2_p1[] = {125, 125, 250, 125, 375};
+  int p2_r1[] = { 25,  25,  50,  25, 125};
+  
+  // Phrase 2
+  int p2_n2[] = {NOTE_D5, NOTE_F5, NOTE_D5, NOTE_F5, NOTE_G5};
+  int p2_p2[] = {125, 250, 125, 250, 375};
+  int p2_r2[] = { 25,  50,  25,  50, 125};
+
+  // Phrase 3
+  int p2_n3[] = {NOTE_GS5, NOTE_G5, NOTE_F5, NOTE_D5, NOTE_F5, NOTE_G5};
+  int p2_p3[] = {250, 250, 250, 125, 125, 500};
+  int p2_r3[] = { 50,  50,  50,  25,  25, 250};
+
+  for (int repeat = 0; repeat < 2; repeat++) 
+  {
+    for(int n = 0; n < 5; n++) {
+      if (i < max_size - 1) song_array[i++] = {p2_p1[n], p2_n1[n], NOTE_AS2, true};
+      if (i < max_size - 1) song_array[i++] = {p2_r1[n], REST,     REST,     true};
+    }
+    for(int n = 0; n < 5; n++) {
+      if (i < max_size - 1) song_array[i++] = {p2_p2[n], p2_n2[n], NOTE_C3,  true};
+      if (i < max_size - 1) song_array[i++] = {p2_r2[n], REST,     REST,     true};
+    }
+    for(int n = 0; n < 6; n++) {
+      if (i < max_size - 1) song_array[i++] = {p2_p3[n], p2_n3[n], NOTE_D3,  true};
+      if (i < max_size - 1) song_array[i++] = {p2_r3[n], REST,     REST,     true};
+    }
+  }
+
+  // ==========================================================
+  // TERMINATOR
+  // ==========================================================
+  // Safely cap the array so the playback engine knows to loop
   if (i < max_size) 
   {
     song_array[i].active = false; 
   }
 }
 
+void load_tetris_melody(buzzer_format song_array[], int max_size)
+{
+  int i = 0;
 
+  // ==========================================================
+  // BPM & TIMING CONFIGURATION (160 BPM - Fast & Rigid)
+  // ==========================================================
+  const int Q_P = 325; const int Q_R = 50;  // Quarter Note
+  const int E_P = 137; const int E_R = 50;  // Eighth Note
+  const int H_P = 700; const int H_R = 50;  // Half Note
+
+  // ==========================================================
+  // PART A: THE ICONIC MAIN RIFF (A Minor)
+  // ==========================================================
+  int m_A[] = {
+    NOTE_E5, NOTE_B4, NOTE_C5, NOTE_D5, NOTE_C5, NOTE_B4,
+    NOTE_A4, NOTE_A4, NOTE_C5, NOTE_E5, NOTE_D5, NOTE_C5,
+    NOTE_B4, NOTE_B4, NOTE_C5, NOTE_D5, NOTE_E5,
+    NOTE_C5, NOTE_A4, NOTE_A4
+  };
+  
+  int p_A[] = {
+    Q_P, E_P, E_P, Q_P, E_P, E_P,
+    Q_P, E_P, E_P, Q_P, E_P, E_P,
+    Q_P, E_P, E_P, Q_P, Q_P,
+    Q_P, Q_P, H_P
+  };
+  
+  int r_A[] = {
+    Q_R, E_R, E_R, Q_R, E_R, E_R,
+    Q_R, E_R, E_R, Q_R, E_R, E_R,
+    Q_R, E_R, E_R, Q_R, Q_R,
+    Q_R, Q_R, H_R
+  };
+  
+  // The bass flawlessly tracks the melody rhythm with heavy root notes
+  int b_A[] = {
+    NOTE_E3, NOTE_E3, NOTE_E3, NOTE_E3, NOTE_E3, NOTE_E3,
+    NOTE_A2, NOTE_A2, NOTE_A2, NOTE_A2, NOTE_A2, NOTE_A2,
+    NOTE_GS2, NOTE_GS2, NOTE_GS2, NOTE_GS2, NOTE_GS2, // G#2 gives it that tense Russian sound!
+    NOTE_A2, NOTE_A2, NOTE_A2
+  };
+
+  // ==========================================================
+  // PART B: THE B-SECTION (D Minor Bridge)
+  // ==========================================================
+  int m_B[] = {
+    NOTE_D5, NOTE_F5, NOTE_A5, NOTE_G5, NOTE_F5,
+    NOTE_E5, NOTE_C5, NOTE_E5, NOTE_D5, NOTE_C5,
+    NOTE_B4, NOTE_B4, NOTE_C5, NOTE_D5, NOTE_E5,
+    NOTE_C5, NOTE_A4, NOTE_A4
+  };
+  
+  int p_B[] = {
+    Q_P, E_P, E_P, Q_P, Q_P,
+    Q_P, E_P, E_P, Q_P, Q_P,
+    Q_P, E_P, E_P, Q_P, Q_P,
+    Q_P, Q_P, H_P
+  };
+  
+  int r_B[] = {
+    Q_R, E_R, E_R, Q_R, Q_R,
+    Q_R, E_R, E_R, Q_R, Q_R,
+    Q_R, E_R, E_R, Q_R, Q_R,
+    Q_R, Q_R, H_R
+  };
+  
+  int b_B[] = {
+    NOTE_D3, NOTE_D3, NOTE_D3, NOTE_D3, NOTE_D3,
+    NOTE_C3, NOTE_C3, NOTE_C3, NOTE_C3, NOTE_C3,
+    NOTE_GS2, NOTE_GS2, NOTE_GS2, NOTE_GS2, NOTE_GS2,
+    NOTE_A2, NOTE_A2, NOTE_A2
+  };
+
+  // ==========================================================
+  // MEMORY INJECTION
+  // ==========================================================
+  
+  // Loop the whole song twice
+  for (int repeat = 0; repeat < 2; repeat++) 
+  {
+    // Inject Part A (20 Notes)
+    for(int n = 0; n < 20; n++) {
+      if (i < max_size - 1) song_array[i++] = {p_A[n], m_A[n], b_A[n], true};
+      if (i < max_size - 1) song_array[i++] = {r_A[n], REST,   REST,   true};
+    }
+    
+    // Inject Part B (18 Notes)
+    for(int n = 0; n < 18; n++) {
+      if (i < max_size - 1) song_array[i++] = {p_B[n], m_B[n], b_B[n], true};
+      if (i < max_size - 1) song_array[i++] = {r_B[n], REST,   REST,   true};
+    }
+  }
+
+  // Cap the array to loop
+  if (i < max_size) 
+  {
+    song_array[i].active = false; 
+  }
+}
+
+void load_mario_melody(buzzer_format song_array[], int max_size)
+{
+  int i = 0;
+
+  // ==========================================================
+  // TIMING CONFIGURATION (Fast, Bouncy, Syncopated)
+  // ==========================================================
+  const int T_PLAY = 100; // Sharp, staccato play time
+  const int T_REST = 50;  // Standard gap
+  const int T_LONG = 200; // Sustained note
+  const int T_WAIT = 150; // Syncopated rest gap
+
+  // ==========================================================
+  // THE ICONIC INTRO 
+  // ==========================================================
+  // Melody: E E   E   C E   G       G(low)
+  int intro_m[] = {NOTE_E5, NOTE_E5, NOTE_E5, NOTE_C5, NOTE_E5, NOTE_G5, NOTE_G4};
+  // Bass matches the rhythm but provides a heavy foundation
+  int intro_b[] = {NOTE_D3, NOTE_D3, NOTE_D3, NOTE_D3, NOTE_D3, NOTE_G3, NOTE_G2};
+  
+  int i_play[] = {T_PLAY, T_PLAY, T_PLAY, T_PLAY, T_PLAY, T_PLAY, T_PLAY};
+  int i_rest[] = {T_REST, T_WAIT, T_WAIT, T_REST, T_WAIT, T_WAIT*3, T_WAIT*3};
+
+  for(int n = 0; n < 7; n++) {
+    if (i < max_size - 1) song_array[i++] = {i_play[n], intro_m[n], intro_b[n], true};
+    if (i < max_size - 1) song_array[i++] = {i_rest[n], REST,       REST,       true};
+  }
+
+  // ==========================================================
+  // THE MAIN WALKING THEME (Loops Twice)
+  // ==========================================================
+  // The classic bouncy melody
+  int main_m[] = {
+    NOTE_C5, NOTE_G4, NOTE_E4, NOTE_A4, NOTE_B4, NOTE_AS4, NOTE_A4,
+    NOTE_G4, NOTE_E5, NOTE_G5, NOTE_A5, NOTE_F5, NOTE_G5, NOTE_E5, NOTE_C5, NOTE_D5, NOTE_B4
+  };
+  
+  // The iconic walking bassline underneath it
+  int main_b[] = {
+    NOTE_E3, NOTE_C3, NOTE_G2, NOTE_F3, NOTE_G3, NOTE_FS3, NOTE_F3,
+    NOTE_E3, NOTE_C3, NOTE_E3, NOTE_F3, NOTE_D3, NOTE_E3, NOTE_C3, NOTE_A2, NOTE_B2, NOTE_G2
+  };
+
+  // The very specific swing timings that make it sound like Mario
+  int m_play[] = {
+    T_LONG, T_PLAY, T_LONG, T_PLAY, T_PLAY, T_PLAY, T_PLAY,
+    T_PLAY, T_PLAY, T_PLAY, T_LONG, T_PLAY, T_PLAY, T_LONG, T_PLAY, T_PLAY, T_PLAY
+  };
+  
+  int m_rest[] = {
+    T_WAIT, T_WAIT, T_WAIT, T_REST, T_WAIT, T_REST, T_WAIT,
+    T_REST, T_REST, T_REST, T_WAIT, T_REST, T_WAIT, T_WAIT, T_REST, T_REST, T_WAIT*2
+  };
+
+  for (int repeat = 0; repeat < 2; repeat++) {
+    for(int n = 0; n < 17; n++) {
+      if (i < max_size - 1) song_array[i++] = {m_play[n], main_m[n], main_b[n], true};
+      if (i < max_size - 1) song_array[i++] = {m_rest[n], REST,      REST,      true};
+    }
+  }
+
+  // ==========================================================
+  // TERMINATOR
+  // ==========================================================
+  if (i < max_size) 
+  {
+    song_array[i].active = false; 
+  }
+}
+
+void load_alarm(buzzer_format song_array[], int max_size, uint8_t type)
+{
+  if(type == 0)
+  {
+    load_megalovania_melody(song_array, max_size);
+  }
+  if(type == 1)
+  {
+    load_tetris_melody(song_array, max_size);
+  }
+  if(type == 2)
+  {
+    load_mario_melody(song_array, max_size);
+  }
+}
