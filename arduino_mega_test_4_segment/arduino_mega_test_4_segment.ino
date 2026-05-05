@@ -693,6 +693,7 @@ int hendel_user()
     }
     alarm_type = j;
     EEPROM.put(RINGTON_ADDR, alarm_type);
+    load_alarm(alarm_rington, MAX_ALARM_LEN, alarm_type);
     rest_clock();
   }
   return 0;
@@ -866,7 +867,6 @@ void play_alarm(buzzer_format song_array[])
 {
   static int current_note = -1;
   static unsigned long start_of_current_note = 0;
-  load_alarm(alarm_rington, MAX_ALARM_LEN, alarm_type);
   if (current_note == -1 || millis() - start_of_current_note >= song_array[current_note].play_time)
   {
     start_of_current_note = millis();
